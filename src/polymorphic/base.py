@@ -111,11 +111,27 @@ class PolymorphicModelBase(ModelBase):
         # replace the parent/child descriptors
         if new_class._meta.parents and not (new_class._meta.abstract or new_class._meta.proxy):
 
+            def replace_inheritance_descriptors(model):
+                for super_cls, field_to_super in model._meta.parents.items():
+                    if issubclass(super_cls, PolymorphicModel):
+                        if field_to_super is not None:
+                            setattr(
+                                new_class,
+                                field_to_super.name,
+                                NonPolymorphicForwardOneToOneDescriptor(field_to_super),
+                            )
+                            setattr(
+                                super_cls,
+                                field_to_super.remote_field.related_name
+                                or field_to_super.remote_field.name,
+                                NonPolymorphicReverseOneToOneDescriptor(
+                                    field_to_super.remote_field
+                                ),
+                            )
+                        else:
+                            pass
+                        replace_inheritance_descriptors(super_cls)
 
             replace_inheritance_descriptors(new_class)
         _clear_utility_caches()
         return new_class
-
-
-
-
