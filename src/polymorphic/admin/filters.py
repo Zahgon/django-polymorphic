@@ -27,27 +27,4 @@ class PolymorphicChildModelFilter(admin.SimpleListFilter):
     title: str = _("Type")  # type: ignore[assignment]
     parameter_name: str = "polymorphic_ctype"
 
-    def lookups(  # type: ignore[override]
-        self, request: HttpRequest, model_admin: PolymorphicParentModelAdmin
-    ) -> Iterable[tuple[str, str]]:
-        return cast(
-            Iterable[tuple[str, str]], model_admin.get_child_type_choices(request, "change")
-        )
 
-    def queryset(self, request: HttpRequest, queryset: QuerySet[Any]) -> QuerySet[Any]:
-        raw_value = self.value()
-        if not raw_value:
-            return queryset
-        try:
-            value = int(raw_value)
-        except TypeError:
-            value = None
-        if value:
-            # ensure the content type is allowed
-            for choice_value, _ in self.lookup_choices:  # noqa: F402
-                if int(choice_value) == value:
-                    return queryset.filter(polymorphic_ctype_id=choice_value)
-            raise PermissionDenied(
-                f'Invalid ContentType "{value}". It must be registered as child model.'
-            )
-        return queryset

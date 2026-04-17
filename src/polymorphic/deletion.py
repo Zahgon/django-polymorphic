@@ -21,20 +21,7 @@ def migration_fingerprint(value: Any) -> Any:
     Produce a stable, hashable fingerprint for a value as Django would represent
     it in migrations, but in a structured form when possible.
     """
-    # Canonical deconstruction path for SET(...), @deconstructible, etc.
-    deconstruct = getattr(value, "deconstruct", None)
-    if callable(deconstruct):
-        path, args, kwargs = value.deconstruct()
-        return (
-            path,
-            tuple(migration_fingerprint(a) for a in args),
-            tuple(sorted((k, migration_fingerprint(v)) for k, v in kwargs.items())),
-        )
-
-    # Fallback: canonical "code string" Django would emit in a migration.
-    # (Works for CASCADE/PROTECT/SET_NULL, primitives, etc.)
-    code, _imports = serializer_factory(value).serialize()
-    return code
+    pass
 
 
 class PolymorphicGuard:
@@ -80,9 +67,6 @@ class PolymorphicGuard:
             sub_objs = sub_objs.non_polymorphic()
         self.action(collector, field, sub_objs, using)
 
-    @cached_property
-    def migration_key(self) -> Any:
-        return migration_fingerprint(self.action)
 
     def __eq__(self, other: object) -> bool:
         if (
@@ -129,7 +113,7 @@ class PolymorphicGuardSerializer(BaseSerializer):
         """
         Serialize the underlying action of the PolymorphicGuard.
         """
-        return serializer_factory(self.value.action).serialize()
+        pass
 
 
 MigrationWriter.register_serializer(PolymorphicGuard, PolymorphicGuardSerializer)

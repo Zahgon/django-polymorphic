@@ -45,28 +45,14 @@ class PolymorphicFormSetMixin:
         """
         :rtype: list[PolymorphicFormSetChild]
         """
-        if not self.formset_children:
-            raise ImproperlyConfigured(
-                "Define 'formset_children' as list of `PolymorphicFormSetChild`"
-            )
-        return self.formset_children
+        pass
 
-    def get_formset_child_kwargs(self) -> dict[str, Any]:
-        return {}
 
     def get_formset(self) -> type[BaseFormSet]:
         """
         Returns the formset class from the inline formset factory
         """
-        # Implementation detail:
-        # Since `polymorphic_modelformset_factory` and `polymorphic_inlineformset_factory` mainly
-        # reuse the standard factories, and then add `child_forms`, the same can be done here.
-        # This makes sure the base class construction is completely honored.
-        FormSet = super().get_formset()  # type: ignore[misc]
-        FormSet.child_forms = polymorphic_child_forms_factory(
-            self.get_formset_children(), **self.get_formset_child_kwargs()
-        )
-        return cast(type[BaseFormSet], FormSet)
+        pass
 
 
 class PolymorphicFormSetView(PolymorphicFormSetMixin, extra_views.ModelFormSetView):

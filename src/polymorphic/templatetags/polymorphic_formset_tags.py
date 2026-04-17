@@ -80,15 +80,7 @@ def include_empty_form(formset: BaseFormSet) -> Generator[BaseForm, None, None]:
 
     Make sure the "empty form" is included when displaying a formset (typically table with input rows)
     """
-    yield from formset
-
-    empty_forms = getattr(formset, "empty_forms", None)
-    if empty_forms is not None:
-        # BasePolymorphicModelFormSet
-        yield from empty_forms
-    else:
-        # Standard Django formset
-        yield formset.empty_form
+    pass
 
 
 @register.filter
@@ -105,27 +97,7 @@ def as_script_options(formset: "BaseModelFormSet[Any, Any]") -> str:
     - ``add_text``
     - ``show_add_button``
     """
-    verbose_name = getattr(formset, "verbose_name", formset.model._meta.verbose_name)
-    options = {
-        "prefix": formset.prefix,
-        "pkFieldName": formset.model._meta.pk.name,
-        "addText": getattr(formset, "add_text", None)
-        or gettext("Add another %(verbose_name)s") % {"verbose_name": capfirst(verbose_name)},
-        "showAddButton": getattr(formset, "show_add_button", True),
-        "deleteText": gettext("Delete"),
-    }
-
-    if isinstance(formset, BasePolymorphicModelFormSet):
-        # Allow to add different types
-        options["childTypes"] = [
-            {
-                "name": force_str(model._meta.verbose_name),
-                "type": model._meta.model_name,
-            }
-            for model in formset.child_forms.keys()
-        ]
-
-    return json.dumps(options)
+    pass
 
 
 @register.filter
@@ -135,8 +107,7 @@ def as_form_type(form: "ModelForm[Any]") -> str:
 
     Usage: ``{{ form|as_form_type }}``
     """
-    # model_name is never None for a valid model, cast is safe
-    return cast(str, form._meta.model._meta.model_name)
+    pass
 
 
 @register.filter
@@ -146,5 +117,4 @@ def as_model_name(model: type[models.Model]) -> str:
 
     Usage: ``{{ model|as_model_name }}``
     """
-    # model_name is never None for a valid model, cast is safe
-    return cast(str, model._meta.model_name)
+    pass

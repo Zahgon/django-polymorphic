@@ -96,16 +96,13 @@ class PolymorphicInlineModelAdmin(InlineModelAdmin):
         :class:`~polymorphic.admin.inlines.PolymorphicInlineModelAdmin.Child` classes,
         to override :attr:`~polymorphic.admin.inlines.PolymorphicInlineModelAdmin.child_inlines`.
         """
-        return self.child_inlines or []
+        pass
 
     def get_child_inline_instances(self) -> list["PolymorphicInlineModelAdmin.Child"]:
         """
         :rtype List[PolymorphicInlineModelAdmin.Child]
         """
-        instances = []
-        for ChildInlineType in self.get_child_inlines():
-            instances.append(ChildInlineType(parent_inline=self))
-        return instances
+        pass
 
     def get_child_inline_instance(
         self, model: type[models.Model]
@@ -115,10 +112,7 @@ class PolymorphicInlineModelAdmin(InlineModelAdmin):
 
         :rtype: PolymorphicInlineModelAdmin.Child
         """
-        try:
-            return self._child_inlines_lookup[model]
-        except KeyError:
-            raise UnsupportedChildType(f"Model '{model.__name__}' not found in child_inlines")
+        pass
 
     def get_formset(
         self, request: HttpRequest, obj: Any = None, **kwargs: Any
@@ -130,16 +124,7 @@ class PolymorphicInlineModelAdmin(InlineModelAdmin):
 
         :rtype: type
         """
-        # Construct the FormSet class
-        FormSet = super().get_formset(request, obj=obj, **kwargs)
-
-        # Instead of completely redefining super().get_formset(), we use
-        # the regular inlineformset_factory(), and amend that with our extra bits.
-        # This code line is the essence of what polymorphic_inlineformset_factory() does.
-        FormSet.child_forms = polymorphic_child_forms_factory(  # type: ignore[attr-defined]
-            formset_children=self.get_formset_children(request, obj=obj)
-        )
-        return cast(type[BasePolymorphicInlineFormSet], FormSet)
+        pass
 
     def get_formset_children(
         self, request: HttpRequest, obj: Any = None
@@ -148,48 +133,15 @@ class PolymorphicInlineModelAdmin(InlineModelAdmin):
         The formset 'children' provide the details for all child models that are part of this formset.
         It provides a stripped version of the modelform/formset factory methods.
         """
-        formset_children = []
-        for child_inline in self.child_inline_instances:
-            # TODO: the children can be limited here per request based on permissions.
-            formset_children.append(child_inline.get_formset_child(request, obj=obj))
-        return formset_children
+        pass
 
     def get_fieldsets(self, request: HttpRequest, obj: Any = None) -> "_FieldsetSpec":
         """
         Hook for specifying fieldsets.
         """
-        if self.fieldsets:
-            return self.fieldsets
-        else:
-            return []  # Avoid exposing fields to the child
+        pass
 
-    def get_fields(self, request: HttpRequest, obj: Any = None) -> "_FieldGroups":
-        if self.fields:
-            # Django's stubs type fields as Sequence[str | Sequence[str]]
-            return self.fields
-        else:
-            return []  # Avoid exposing fields to the child
 
-    @property
-    def media(self):
-        # The media of the inline focuses on the admin settings,
-        # whether to expose the scripts for filter_horizontal etc..
-        # The admin helper exposes the inline + formset media.
-        base_media = super().media
-        all_media = Media()
-        add_media(all_media, base_media)
-
-        # Add all media of the child inline instances
-        for child_instance in self.child_inline_instances:
-            child_media = child_instance.media
-
-            # Avoid adding the same media object again and again
-            if child_media._css != base_media._css and child_media._js != base_media._js:  # type: ignore[attr-defined]
-                add_media(all_media, child_media)
-
-        add_media(all_media, self.polymorphic_media)
-
-        return all_media
 
     class Child(InlineModelAdmin):
         """
@@ -220,20 +172,6 @@ class PolymorphicInlineModelAdmin(InlineModelAdmin):
             # The formset is created by the parent inline.
             raise RuntimeError("The child get_formset() is not used.")
 
-        def get_fields(self, request: HttpRequest, obj: Any = None) -> "_FieldGroups":
-            if self.fields:
-                return self.fields
-
-            # Standard Django logic, use the form to determine the fields.
-            # The form needs to pass through all factory logic so all 'excludes' are set as well.
-            # Default Django does: form = self.get_formset(request, obj, fields=None).form
-            # Use 'fields=None' avoids recursion in the field autodetection.
-            form = self.get_formset_child(request, obj, fields=None).get_form()
-            # Cast list[str] to _FieldGroups (compatible at runtime)
-            return cast(
-                "_FieldGroups",
-                list(form.base_fields) + list(self.get_readonly_fields(request, obj)),
-            )
 
         def get_formset_child(
             self, request: HttpRequest, obj: Any = None, **kwargs: Any
@@ -243,47 +181,7 @@ class PolymorphicInlineModelAdmin(InlineModelAdmin):
 
             :rtype: PolymorphicFormSetChild
             """
-            # Similar to the normal get_formset(), the caller may pass fields to override the defaults settings
-            # in the inline. In Django's GenericInlineModelAdmin.get_formset() this is also used in the same way,
-            # to make sure the 'exclude' also contains the GFK fields.
-            #
-            # Hence this code is almost identical to InlineModelAdmin.get_formset()
-            # and GenericInlineModelAdmin.get_formset()
-            #
-            # Transfer the local inline attributes to the formset child,
-            # this allows overriding settings.
-            if "fields" in kwargs:
-                fields = kwargs.pop("fields")
-            else:
-                fields = flatten_fieldsets(self.get_fieldsets(request, obj))
-
-            if self.exclude is None:
-                exclude = []
-            else:
-                exclude = list(self.exclude)
-
-            exclude.extend(self.get_readonly_fields(request, obj))
-            # Add forcefully, as Django 1.10 doesn't include readonly fields.
-            exclude.append("polymorphic_ctype")
-
-            if self.exclude is None and hasattr(self.form, "_meta") and self.form._meta.exclude:
-                # Take the custom ModelForm's Meta.exclude into account only if the
-                # InlineModelAdmin doesn't define its own.
-                exclude.extend(self.form._meta.exclude)
-
-            # can_delete = self.can_delete and self.has_delete_permission(request, obj)
-            defaults = {
-                "form": self.form,
-                "fields": fields,
-                "exclude": exclude or None,
-                "formfield_callback": partial(self.formfield_for_dbfield, request=request),
-            }
-            defaults.update(kwargs)
-
-            # This goes through the same logic that get_formset() calls
-            # by passing the inline class attributes to modelform_factory()
-            FormSetChildClass = self.formset_child
-            return FormSetChildClass(self.model, **defaults)
+            pass
 
 
 class StackedPolymorphicInline(PolymorphicInlineModelAdmin):

@@ -96,11 +96,6 @@ class PolymorphicManager(models.Manager[_All], Generic[_All, _Base]):
         manager.queryset_class = queryset_class  # type: ignore[assignment]
         return manager
 
-    def get_queryset(self) -> PolymorphicQuerySet[_All, _Base]:
-        qs = self.queryset_class(self.model, using=self._db, hints=getattr(self, "_hints", None))
-        if self.model._meta.proxy:
-            qs = qs.instance_of(self.model)
-        return qs
 
     def __str__(self) -> str:
         return (
@@ -108,8 +103,6 @@ class PolymorphicManager(models.Manager[_All], Generic[_All, _Base]):
         )
 
     # Proxied methods
-    def non_polymorphic(self) -> PolymorphicQuerySet[_Base, _Base]:
-        return self.all().non_polymorphic()
 
     # fixme: remove overloads when/if typing ever supports variadic generic unions
     @overload
@@ -133,16 +126,8 @@ class PolymorphicManager(models.Manager[_All], Generic[_All, _Base]):
     @overload
     def instance_of(self, *args: type[PolymorphicModel]) -> PolymorphicQuerySet[_All, _Base]: ...
 
-    def instance_of(
-        self: PolymorphicManager[_All], *args: type[PolymorphicModel]
-    ) -> PolymorphicQuerySet[PolymorphicModel, _Base]:
-        return cast(PolymorphicQuerySet["PolymorphicModel", _Base], self.all().instance_of(*args))
 
-    def not_instance_of(self, *args: type[PolymorphicModel]) -> PolymorphicQuerySet[_All, _Base]:
-        return self.all().not_instance_of(*args)
 
-    def get_real_instances(self, base_result_objects: Iterable[_All] | None = None) -> list[_All]:
-        return self.all().get_real_instances(base_result_objects=base_result_objects)
 
     def create_from_super(self, obj: models.Model, **kwargs: Any) -> _Base:
         """
@@ -155,39 +140,7 @@ class PolymorphicManager(models.Manager[_All], Generic[_All, _Base]):
         :param kwargs: Additional fields to set on the new instance.
         :return: The newly created instance.
         """
-        from .models import PolymorphicModel
-
-        with transaction.atomic(using=obj._state.db or DEFAULT_DB_ALIAS):
-            # ensure we have the most derived real instance
-            if isinstance(obj, PolymorphicModel):
-                obj = obj.get_real_instance()
-
-            parent_ptr = self.model._meta.parents.get(type(obj), None)
-
-            if not parent_ptr:
-                raise TypeError(
-                    f"{obj.__class__.__name__} is not a direct parent of {self.model.__name__}"
-                )
-            kwargs[parent_ptr.get_attname()] = obj.pk  # type: ignore[union-attr]
-
-            # create the new base class with only fields that apply to  it.
-            ctype = ContentType.objects.db_manager(
-                using=(obj._state.db or DEFAULT_DB_ALIAS)
-            ).get_for_model(self.model)
-            nobj: _Base = self.model(**kwargs, polymorphic_ctype=ctype)  # type: ignore[assignment]
-            nobj.save_base(raw=True, using=obj._state.db or DEFAULT_DB_ALIAS, force_insert=True)
-            # force update the content type, but first we need to
-            # retrieve a clean copy from the db to fill in the null
-            # fields otherwise they would be overwritten.
-            if isinstance(obj, PolymorphicModel):
-                parent = obj.__class__.objects.using(obj._state.db or DEFAULT_DB_ALIAS).get(
-                    pk=obj.pk
-                )
-                parent.polymorphic_ctype = ctype
-                parent.save()
-
-            nobj.refresh_from_db()  # cast to cls
-            return nobj
+        pass
 
 
 if TYPE_CHECKING:
@@ -350,11 +303,6 @@ class PolymorphicForwardManyToOneDescriptor(
             Self | _All | None, super().__get__(instance, cls)
         )
 
-    def get_queryset(self, **hints: Any) -> PolymorphicQuerySet[_All, _Base]:
-        return cast(  # pragma: no cover
-            PolymorphicQuerySet[_All, _Base],
-            super().get_queryset(**hints),
-        )
 
 
 class PolymorphicForwardOneToOneDescriptor(
@@ -441,8 +389,3 @@ class PolymorphicReverseOneToOneDescriptor(
             Self | _All | None, super().__get__(instance, cls)
         )
 
-    def get_queryset(self, **hints: Any) -> PolymorphicQuerySet[_All, _Base]:
-        return cast(  # pragma: no cover
-            PolymorphicQuerySet[_All, _Base],
-            super().get_queryset(**hints),
-        )

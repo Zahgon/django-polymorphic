@@ -31,19 +31,7 @@ class GenericPolymorphicInlineModelAdmin(PolymorphicInlineModelAdmin, GenericInl
         """
         Construct the generic inline formset class.
         """
-        # Construct the FormSet class. This is almost the same as parent version,
-        # except that a different super is called so generic_inlineformset_factory() is used.
-        # NOTE that generic_inlineformset_factory() also makes sure the GFK fields are excluded in the form.
-        FormSet = GenericInlineModelAdmin.get_formset(self, request, obj=obj, **kwargs)
-
-        setattr(
-            FormSet,
-            "child_forms",
-            polymorphic_child_forms_factory(
-                formset_children=self.get_formset_children(request, obj=obj)
-            ),
-        )
-        return cast(type[BaseGenericPolymorphicInlineFormSet], FormSet)
+        pass
 
     class Child(PolymorphicInlineModelAdmin.Child):
         """
@@ -61,18 +49,8 @@ class GenericPolymorphicInlineModelAdmin(PolymorphicInlineModelAdmin, GenericInl
             Expose the ContentType that the child relates to.
             This can be used for the ``polymorphic_ctype`` field.
             """
-            return ContentType.objects.get_for_model(self.model, for_concrete_model=False)
+            pass
 
-        def get_formset_child(
-            self, request: HttpRequest, obj: Any = None, **kwargs: Any
-        ) -> PolymorphicFormSetChild:
-            # Similar to GenericInlineModelAdmin.get_formset(),
-            # make sure the GFK is automatically excluded from the form
-            defaults = {"ct_field": self.ct_field, "fk_field": self.ct_fk_field}
-            defaults.update(kwargs)
-            return super(GenericPolymorphicInlineModelAdmin.Child, self).get_formset_child(
-                request, obj=obj, **defaults
-            )
 
 
 class GenericStackedPolymorphicInline(GenericPolymorphicInlineModelAdmin):

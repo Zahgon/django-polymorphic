@@ -86,178 +86,17 @@ class PolymorphicChildModelAdmin(_ModelAdminBase, Generic[_ModelT]):
 
         return super().get_form(request, obj, **kwargs)
 
-    def get_model_perms(self, request):
-        match = resolve(request.path_info)
 
-        if not self.show_in_index and match.namespace == self.admin_site.name:
-            return {"add": False, "change": False, "delete": False}
-        return super().get_model_perms(request)
 
-    @property
-    def change_form_template(self) -> list[str]:  # type: ignore[override]
-        opts = self.model._meta
-        app_label = opts.app_label
 
-        # Pass the base options
-        assert self.base_model is not None, "base_model must be set"
-        base_opts = self.base_model._meta
-        base_app_label = base_opts.app_label
 
-        return [
-            f"admin/{app_label}/{opts.object_name.lower()}/change_form.html",  # type: ignore[union-attr]
-            f"admin/{app_label}/change_form.html",
-            # Added:
-            f"admin/{base_app_label}/{base_opts.object_name.lower()}/change_form.html",  # type: ignore[union-attr]
-            f"admin/{base_app_label}/change_form.html",
-            "admin/polymorphic/change_form.html",
-            "admin/change_form.html",
-        ]
 
-    @property
-    def delete_confirmation_template(self) -> list[str]:  # type: ignore[override]
-        opts = self.model._meta
-        app_label = opts.app_label
 
-        # Pass the base options
-        assert self.base_model is not None, "base_model must be set"
-        base_opts = self.base_model._meta
-        base_app_label = base_opts.app_label
 
-        return [
-            f"admin/{app_label}/{opts.object_name.lower()}/delete_confirmation.html",  # type: ignore[union-attr]
-            f"admin/{app_label}/delete_confirmation.html",
-            # Added:
-            f"admin/{base_app_label}/{base_opts.object_name.lower()}/delete_confirmation.html",  # type: ignore[union-attr]
-            f"admin/{base_app_label}/delete_confirmation.html",
-            "admin/polymorphic/delete_confirmation.html",
-            "admin/delete_confirmation.html",
-        ]
 
-    @property
-    def object_history_template(self) -> list[str]:  # type: ignore[override]
-        opts = self.model._meta
-        app_label = opts.app_label
 
-        # Pass the base options
-        assert self.base_model is not None, "base_model must be set"
-        base_opts = self.base_model._meta
-        base_app_label = base_opts.app_label
-
-        return [
-            f"admin/{app_label}/{opts.object_name.lower()}/object_history.html",  # type: ignore[union-attr]
-            f"admin/{app_label}/object_history.html",
-            # Added:
-            f"admin/{base_app_label}/{base_opts.object_name.lower()}/object_history.html",  # type: ignore[union-attr]
-            f"admin/{base_app_label}/object_history.html",
-            "admin/polymorphic/object_history.html",
-            "admin/object_history.html",
-        ]
-
-    def _get_parent_admin(self):
-        # this returns parent admin instance on which to call response_post_save methods
-        parent_model = self.model._meta.get_field("polymorphic_ctype").model
-        if parent_model == self.model:
-            # when parent_model is in among child_models, just return super instance
-            return super()
-
-        try:
-            return self.admin_site._registry[parent_model]
-        except KeyError:
-            # Admin is not registered for polymorphic_ctype model, but perhaps it's registered
-            # for a intermediate proxy model, between the parent_model and this model.
-            for klass in inspect.getmro(self.model):
-                if not issubclass(klass, parent_model):
-                    continue  # e.g. found a mixin.
-
-                # Fetch admin instance for model class, see if it's a possible candidate.
-                model_admin = self.admin_site._registry.get(klass)
-                if model_admin is not None and isinstance(
-                    model_admin, PolymorphicParentModelAdmin
-                ):
-                    return model_admin  # Success!
-
-            # If we get this far without returning there is no admin available
-            raise ParentAdminNotRegistered(
-                f"No parent admin was registered for a '{parent_model}' model."
-            )
-
-    def response_post_save_add(self, request, obj):
-        return self._get_parent_admin().response_post_save_add(request, obj)
-
-    def response_post_save_change(self, request, obj):
-        return self._get_parent_admin().response_post_save_change(request, obj)
-
-    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
-        assert self.base_model is not None, "base_model must be set"
-        context.update({"base_opts": self.base_model._meta})
-        return super().render_change_form(
-            request, context, add=add, change=change, form_url=form_url, obj=obj
-        )
-
-    def delete_view(self, request, object_id, context=None):
-        assert self.base_model is not None, "base_model must be set"
-        extra_context = {"base_opts": self.base_model._meta}
-        return super().delete_view(request, object_id, extra_context)
-
-    def history_view(self, request, object_id, extra_context=None):
-        # Make sure the history view can also display polymorphic breadcrumbs
-        assert self.base_model is not None, "base_model must be set"
-        context = {"base_opts": self.base_model._meta}
-        if extra_context:
-            context.update(extra_context)
-        return super().history_view(request, object_id, extra_context=context)
 
     # ---- Extra: improving the form/fieldset default display ----
 
-    def get_base_fieldsets(self, request, obj=None):
-        return self.base_fieldsets
 
-    def get_fieldsets(self, request, obj=None):
-        base_fieldsets = self.get_base_fieldsets(request, obj)
 
-        # If subclass declares fieldsets or fields, this is respected
-        if self.fieldsets or self.fields or not self.base_fieldsets:
-            return super().get_fieldsets(request, obj)
-
-        # Have a reasonable default fieldsets,
-        # where the subclass fields are automatically included.
-        other_fields = self.get_subclass_fields(request, obj)
-
-        if other_fields:
-            return (
-                base_fieldsets[0],
-                (self.extra_fieldset_title, {"fields": other_fields}),
-            ) + base_fieldsets[1:]
-        else:
-            return base_fieldsets
-
-    def get_subclass_fields(self, request, obj=None):
-        # Find out how many fields would really be on the form,
-        # if it weren't restricted by declared fields.
-        exclude = list(self.exclude or [])
-        exclude.extend(self.get_readonly_fields(request, obj))
-
-        # By not declaring the fields/form in the base class,
-        # get_form() will populate the form with all available fields.
-        form = self.get_form(request, obj, exclude=exclude)
-        subclass_fields = list(form.base_fields.keys()) + list(
-            self.get_readonly_fields(request, obj)
-        )
-
-        # Find which fields are not part of the common fields.
-        for fieldset in self.get_base_fieldsets(request, obj):
-            for field in fieldset[1]["fields"]:
-                # multiple elements in single line
-                if isinstance(field, tuple):
-                    for line_field in field:
-                        try:
-                            subclass_fields.remove(line_field)
-                        except ValueError:
-                            pass  # field not found in form, Django will raise exception later.
-                else:
-                    # regular one-element-per-line
-                    try:
-                        subclass_fields.remove(field)
-                    except ValueError:
-                        pass  # field not found in form, Django will raise exception later.
-        return subclass_fields

@@ -14,20 +14,6 @@ class NonPolymorphicForwardOneToOneDescriptor(ForwardOneToOneDescriptor):
     in multi-table polymorphic models.
     """
 
-    def get_queryset(self, **hints: Any) -> QuerySet[Any]:
-        return cast(
-            QuerySet[Any],
-            (
-                getattr(
-                    self.field.remote_field.model,
-                    "_base_objects",
-                    # don't fail if we've been used on a non-poly model
-                    self.field.remote_field.model._base_manager,
-                )
-            )
-            .db_manager(hints=hints)
-            .all(),
-        )
 
 
 class NonPolymorphicReverseOneToOneDescriptor(ReverseOneToOneDescriptor):
@@ -37,17 +23,3 @@ class NonPolymorphicReverseOneToOneDescriptor(ReverseOneToOneDescriptor):
     in multi-table polymorphic models.
     """
 
-    def get_queryset(self, **hints: Any) -> QuerySet[Any]:
-        return cast(
-            QuerySet[Any],
-            (
-                getattr(
-                    self.related.related_model,
-                    "_base_objects",
-                    # don't fail if we've been used on a non-poly model
-                    self.related.related_model._base_manager,  # type: ignore[union-attr]
-                )
-            )
-            .db_manager(hints=hints)
-            .all(),
-        )

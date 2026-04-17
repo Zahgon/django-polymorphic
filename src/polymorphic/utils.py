@@ -53,21 +53,6 @@ def reset_polymorphic_ctype(*models: type[models.Model], **filters: Any) -> None
         qs.update(polymorphic_ctype=new_ct)
 
 
-def _compare_mro(cls1: type, cls2: type) -> int:
-    if cls1 is cls2:
-        return 0
-
-    try:
-        index1 = cls1.mro().index(cls2)
-    except ValueError:
-        return -1  # cls2 not inherited by 1
-
-    try:
-        index2 = cls2.mro().index(cls1)
-    except ValueError:
-        return 1  # cls1 not inherited by 2
-
-    return (index1 > index2) - (index1 < index2)  # python 3 compatible cmp.
 
 
 def sort_by_subclass(*classes: type[models.Model]) -> list[type[models.Model]]:
@@ -224,25 +209,7 @@ def prepare_for_copy(obj: models.Model) -> None:
 
     :param obj: The model instance to prepare for copying.
     """
-    from polymorphic.models import PolymorphicModel
-
-    obj.pk = None
-    if isinstance(obj, PolymorphicModel):
-        # we might be upcasting - allow ctype to be reset automatically on save
-        obj.polymorphic_ctype_id = None
-
-    def reset_parent_pointers(mdl):
-        """
-        Reset all parent table pointers and pks in the inheritance chain.
-        """
-        for parent, ptr in mdl._meta.parents.items():
-            reset_parent_pointers(parent)
-            if ptr is not None:
-                setattr(obj, ptr.attname, None)
-                setattr(obj, parent._meta.pk.attname, None)
-
-    reset_parent_pointers(obj)
-    obj._state.adding = True  # Mark as new object
+    pass
 
 
 def _lazy_ctype(model: type[models.Model], using: str = DEFAULT_DB_ALIAS) -> ContentType | Q:
